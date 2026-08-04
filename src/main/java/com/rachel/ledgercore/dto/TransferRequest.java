@@ -1,13 +1,20 @@
 package com.rachel.ledgercore.dto;
 
 
+import lombok.Builder;
+import lombok.Data;
+
 import java.math.BigDecimal;
 
+@Builder
+@Data
 public class TransferRequest {
 
-    String fromAccountNumber;
+    private String fromAccountNumber;
 
-    String toAccountNumber;
+    private String toAccountNumber;
 
-    BigDecimal amount;
+    private BigDecimal amount;
+
+    private String idempotencyKey;
 }
