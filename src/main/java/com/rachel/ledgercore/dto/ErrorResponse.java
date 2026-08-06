@@ -1,26 +1,25 @@
 package com.rachel.ledgercore.dto;
 
-import com.rachel.ledgercore.enums.Status;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.util.UUID;
+import java.time.LocalDateTime;
 
-import java.math.BigDecimal;
-
-@Builder
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class TransferResponse {
+@Builder
+public class ErrorResponse {
 
-    private UUID id;
+    private LocalDateTime timestamp;
 
-    private Status status;
+    private int status;
 
-    private BigDecimal amount;
+    private String error;
 
     private String message;
+
+    private String path;
 }
