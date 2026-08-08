@@ -22,7 +22,6 @@ public class CreateAccountResponse {
 
     private String accountNumber;
 
-
     private String ownerName;
 
     private BigDecimal balance;

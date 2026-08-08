@@ -3,6 +3,7 @@ package com.rachel.ledgercore.service;
 import com.rachel.ledgercore.dto.CreateAccountRequest;
 import com.rachel.ledgercore.dto.CreateAccountResponse;
 import com.rachel.ledgercore.exception.AccountAlreadyExistingException;
+import com.rachel.ledgercore.exception.AccountNotFoundException;
 import com.rachel.ledgercore.model.Account;
 import com.rachel.ledgercore.repository.AccountRepository;
 import lombok.RequiredArgsConstructor;
@@ -34,6 +35,19 @@ public class AccountService {
                 .balance(savedAccount.getBalance())
                 .message("Account created successfully!")
                 .createdAt(savedAccount.getCreatedAt())
+                .build();
+    }
+
+    public CreateAccountResponse getAccountByAccountNumber(String accountNumber){
+        Account account = accountRepository.findByAccountNumber(accountNumber).orElseThrow(() -> new AccountNotFoundException("Account not found!"));
+        return CreateAccountResponse.builder()
+                .id(account.getId())
+                .createdAt(account.getCreatedAt())
+                .currency(account.getCurrency())
+                .accountNumber(account.getAccountNumber())
+                .ownerName(account.getOwnerName())
+                .balance(account.getBalance())
+                .message("Account retrieved successfully!")
                 .build();
     }
 
