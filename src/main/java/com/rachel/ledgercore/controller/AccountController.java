@@ -67,7 +67,7 @@ PATCH  /accounts/{accountNumber}/deposit
 PATCH  /accounts/{accountNumber}/withdraw
 DELETE /accounts/{accountNumber}
 
-TRANSFER
+TRANSFER - done
 POST   /api/v1/transfer
 GET    /api/v1/transfers/{transferId}
 GET    /api/v1/transfers

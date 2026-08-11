@@ -6,6 +6,7 @@ import com.rachel.ledgercore.enums.EntryType;
 import com.rachel.ledgercore.enums.Status;
 import com.rachel.ledgercore.exception.AccountNotFoundException;
 import com.rachel.ledgercore.exception.InsufficientBalanceException;
+import com.rachel.ledgercore.exception.TransferNotFoundException;
 import com.rachel.ledgercore.model.Account;
 import com.rachel.ledgercore.model.LedgerEntry;
 import com.rachel.ledgercore.model.Transfer;
@@ -17,7 +18,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor// instead of constructor injection, this is used
@@ -82,7 +86,54 @@ public class TransferService {
                 .id(transfer.getId())
                 .status(transfer.getStatus())
                 .amount(transfer.getAmount())
+                .fromAccountNumber(transfer.getFromAccount().getAccountNumber())
+                .toAccountNumber(transfer.getToAccount().getAccountNumber())
                 .message("Transfer successful")
                 .build();
     }
+
+    public TransferResponse getTransferByTransferId(UUID transferId){
+        Transfer transfer = transferRepository.findById(transferId).orElseThrow(() -> new TransferNotFoundException("Transfer not found with id: " + transferId));
+        return TransferResponse.builder()
+                .id(transferId)
+                .status(transfer.getStatus())
+                .amount(transfer.getAmount())
+                .fromAccountNumber(transfer.getFromAccount().getAccountNumber())
+                .toAccountNumber(transfer.getToAccount().getAccountNumber())
+                .message("Transfer found")
+                .build();
+    }
+
+    public List<TransferResponse> getTransfers(){
+        return transferRepository.findAll().stream()
+                .map(transfer -> TransferResponse.builder()
+                        .id(transfer.getId())
+                        .status(transfer.getStatus())
+                        .amount(transfer.getAmount())
+                        .fromAccountNumber(transfer.getFromAccount().getAccountNumber())
+                        .toAccountNumber(transfer.getToAccount().getAccountNumber())
+                        .message("Transfer found")
+                        .build())
+                .collect(Collectors.toList());
+    }
+
+    public List<TransferResponse> getTransfersByAccountNumber(String accountNumber){
+        Account account = accountRepository.findByAccountNumber(accountNumber).orElseThrow(() -> new AccountNotFoundException("Account not found!"));
+        List<Transfer> from = transferRepository.findByFromAccountNumber(accountNumber);
+        List<Transfer> to = transferRepository.findByToAccountAccountNumber(accountNumber);
+        List<Transfer> allTransfers = new ArrayList<>();
+        allTransfers.addAll(from);
+        allTransfers.addAll(to);
+         return allTransfers.stream()
+                 .map(transfer -> TransferResponse.builder()
+                         .id(transfer.getId())
+                         .fromAccountNumber(transfer.getFromAccount().getAccountNumber())
+                         .toAccountNumber(transfer.getToAccount().getAccountNumber())
+                         .status(transfer.getStatus())
+                         .amount(transfer.getAmount())
+                         .message("Transfer found")
+                         .build()
+                 ).toList();
+    }
+
 }

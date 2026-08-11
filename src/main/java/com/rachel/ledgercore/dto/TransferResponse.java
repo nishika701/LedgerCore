@@ -6,9 +6,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.util.UUID;
-
 import java.math.BigDecimal;
+import java.util.UUID;
 
 @Builder
 @Data
@@ -17,6 +16,10 @@ import java.math.BigDecimal;
 public class TransferResponse {
 
     private UUID id;
+
+    private String fromAccountNumber;
+
+    private String toAccountNumber;
 
     private Status status;
 
