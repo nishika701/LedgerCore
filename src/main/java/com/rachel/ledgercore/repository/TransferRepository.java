@@ -14,4 +14,5 @@ public interface TransferRepository extends JpaRepository<Transfer, UUID> {
     Optional<Transfer> findByIdempotencyKey(String idempotencyKey);
     List<Transfer> findByFromAccountNumber(String accountNumber);
     List<Transfer> findByToAccountAccountNumber(String accountNumber);
+    Optional<Transfer> findById(UUID id);
 }

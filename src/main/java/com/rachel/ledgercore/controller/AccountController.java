@@ -73,7 +73,7 @@ GET    /api/v1/transfers/{transferId}
 GET    /api/v1/transfers
 GET    /api/v1/accounts/{accountNumber}/transfers
 
-LEDGER
+LEDGER - done
 GET    /api/v1/accounts/{accountNumber}/ledger
 
 NOTIFICATION
