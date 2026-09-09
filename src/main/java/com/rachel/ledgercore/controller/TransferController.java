@@ -2,7 +2,6 @@ package com.rachel.ledgercore.controller;
 
 import com.rachel.ledgercore.dto.TransferRequest;
 import com.rachel.ledgercore.dto.TransferResponse;
-import com.rachel.ledgercore.model.Transfer;
 import com.rachel.ledgercore.service.TransferService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;

@@ -12,7 +12,7 @@ import java.util.UUID;
 public interface TransferRepository extends JpaRepository<Transfer, UUID> {
     List<Transfer> findByStatus(String status);
     Optional<Transfer> findByIdempotencyKey(String idempotencyKey);
-    List<Transfer> findByFromAccountNumber(String accountNumber);
+    List<Transfer> findByFromAccountAccountNumber(String accountNumber);
     List<Transfer> findByToAccountAccountNumber(String accountNumber);
     Optional<Transfer> findById(UUID id);
 }

@@ -119,7 +119,7 @@ public class TransferService {
 
     public List<TransferResponse> getTransfersByAccountNumber(String accountNumber){
         Account account = accountRepository.findByAccountNumber(accountNumber).orElseThrow(() -> new AccountNotFoundException("Account not found!"));
-        List<Transfer> from = transferRepository.findByFromAccountNumber(accountNumber);
+        List<Transfer> from = transferRepository.findByFromAccountAccountNumber(accountNumber);
         List<Transfer> to = transferRepository.findByToAccountAccountNumber(accountNumber);
         List<Transfer> allTransfers = new ArrayList<>();
         allTransfers.addAll(from);
