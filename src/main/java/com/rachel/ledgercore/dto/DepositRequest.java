@@ -16,9 +16,6 @@ import java.math.BigDecimal;
 @NoArgsConstructor
 public class DepositRequest {
 
-    @NotBlank
-    private String accountNumber;
-
     @NotNull
     @Positive
     private BigDecimal amount;

@@ -1,11 +1,13 @@
 package com.rachel.ledgercore.service;
 
 import com.rachel.ledgercore.dto.*;
+import com.rachel.ledgercore.enums.NotificationType;
 import com.rachel.ledgercore.exception.AccountAlreadyExistingException;
 import com.rachel.ledgercore.exception.AccountNotFoundException;
 import com.rachel.ledgercore.exception.InsufficientBalanceException;
 import com.rachel.ledgercore.model.Account;
 import com.rachel.ledgercore.repository.AccountRepository;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -18,6 +20,12 @@ import java.util.List;
 public class AccountService {
 
     private final AccountRepository accountRepository;
+    private final NotificationService notificationService;
+
+//    public AccountService(AccountRepository accountRepository,NotificationService notificationService){
+//        this.accountRepository = accountRepository;
+//        this.notificationService = notificationService;
+//    }
 
     public AccountResponse createAccount(CreateAccountRequest createAccountRequest){
         if(accountRepository.findByAccountNumber(createAccountRequest.getAccountNumber()).isPresent()){
@@ -68,28 +76,32 @@ public class AccountService {
     }
 
 
-    public DepositResponse depositMoney(DepositRequest depositRequest){
-        Account account = accountRepository.findByAccountNumber(depositRequest.getAccountNumber()).orElseThrow(() -> new AccountNotFoundException("Account not found!"));
-        BigDecimal newBalance =  account.getBalance().add(depositRequest.getAmount());
-        account.setBalance(newBalance);
-        accountRepository.save(account);
+    @Transactional
+    public DepositResponse depositMoney(String accountNumber,DepositRequest depositRequest){
+        Account acc = accountRepository.findByAccountNumber(accountNumber).orElseThrow(() -> new AccountNotFoundException("Account not found!"));
+        BigDecimal newBalance =  acc.getBalance().add(depositRequest.getAmount());
+        acc.setBalance(newBalance);
+        accountRepository.save(acc);
+        notificationService.createNotification(acc,"Money deposited successfully!", NotificationType.MONEY_DEPOSITED);
         return DepositResponse.builder()
-                .accountNumber(depositRequest.getAccountNumber())
-                .balance(account.getBalance())
+                .accountNumber(accountNumber)
+                .balance(acc.getBalance())
                 .message("Money deposited successfully!")
                 .build();
     }
 
-    public WithdrawResponse withdrawMoney(WithdrawRequest withdrawRequest){
-        Account account = accountRepository.findByAccountNumber(withdrawRequest.getAccountNumber()).orElseThrow(() -> new AccountNotFoundException("Account not found!"));
+    @Transactional
+    public WithdrawResponse withdrawMoney(String accountNumber,WithdrawRequest withdrawRequest){
+        Account account = accountRepository.findByAccountNumber(accountNumber).orElseThrow(() -> new AccountNotFoundException("Account not found!"));
         if (account.getBalance().compareTo(withdrawRequest.getAmount()) < 0) {
             throw new InsufficientBalanceException("Insufficient balance in account!");
         }
         BigDecimal newBalance =  account.getBalance().subtract(withdrawRequest.getAmount());
         account.setBalance(newBalance);
         accountRepository.save(account);
+        notificationService.createNotification(account,"Money withdrawn successfully!", NotificationType.MONEY_WITHDRAWN);
         return WithdrawResponse.builder()
-                .accountNumber(withdrawRequest.getAccountNumber())
+                .accountNumber(accountNumber)
                 .balance(account.getBalance())
                 .message("Money withdrawn successfully!")
                 .build();

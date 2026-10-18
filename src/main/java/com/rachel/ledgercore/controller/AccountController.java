@@ -36,14 +36,14 @@ public class AccountController {
     }
 
     @PatchMapping("/deposit/{accountNumber}")
-    public ResponseEntity<DepositResponse> depositMoney(@Valid @RequestBody DepositRequest depositRequest){
-        DepositResponse response = accountService.depositMoney(depositRequest);
+    public ResponseEntity<DepositResponse> depositMoney(@PathVariable String accountNumber,@Valid @RequestBody DepositRequest depositRequest){
+        DepositResponse response = accountService.depositMoney(accountNumber,depositRequest);
         return ResponseEntity.ok(response);
     }
 
     @PatchMapping("/withdraw/{accountNumber}")
-    public ResponseEntity<WithdrawResponse> withdrawMoney(@Valid @RequestBody WithdrawRequest withdrawRequest){
-        WithdrawResponse response = accountService.withdrawMoney(withdrawRequest);
+    public ResponseEntity<WithdrawResponse> withdrawMoney(@PathVariable String accountNumber,@Valid @RequestBody WithdrawRequest withdrawRequest){
+        WithdrawResponse response = accountService.withdrawMoney(accountNumber,withdrawRequest);
         return ResponseEntity.ok(response);
     }
 

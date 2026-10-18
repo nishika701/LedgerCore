@@ -1,5 +1,6 @@
 package com.rachel.ledgercore.service;
 
+import com.rachel.ledgercore.enums.NotificationType;
 import com.rachel.ledgercore.exception.AccountNotFoundException;
 import com.rachel.ledgercore.model.Account;
 import com.rachel.ledgercore.model.Notification;
@@ -27,6 +28,15 @@ public class NotificationService {
         Account account = accountRepository.findByAccountNumber(accountNumber).orElseThrow(()-> new AccountNotFoundException("Account number not found"));
         List<Notification> list = notificationRepository.findByAccount(account);
         return list;
+    }
+
+    public Notification createNotification(Account account, String description, NotificationType notificationType){
+        Notification notification = new Notification();
+        notification.setAccount(account);
+        notification.setNotificationType(notificationType);
+        notification.setDescription(description);
+        notificationRepository.save(notification);
+        return notification;
     }
 
 }

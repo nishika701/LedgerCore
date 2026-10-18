@@ -16,6 +16,7 @@ public class AuthService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final JwtService jwtService;
 
     public AuthResponse register(AuthRequest authRequest){
         if(userRepository.findByUsername(authRequest.getUserName()).isPresent()){
@@ -36,6 +37,7 @@ public class AuthService {
         User user = userRepository.findByUsername(authRequest.getUserName())
                 .orElseThrow(() -> new UserNotFoundException("User not existing!"));
 
+        String t = jwtService.generateToken(user.getUsername());
         if (!passwordEncoder.matches(
                 authRequest.getPassword(),
                 user.getPassword())) {
@@ -46,6 +48,7 @@ public class AuthService {
         return AuthResponse.builder()
                 .id(user.getId())
                 .userName(user.getUsername())
+                .token(t)
                 .message("Logged in successfully!")
                 .build();
     }
