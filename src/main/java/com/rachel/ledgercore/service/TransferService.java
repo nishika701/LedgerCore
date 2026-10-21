@@ -3,6 +3,7 @@ package com.rachel.ledgercore.service;
 import com.rachel.ledgercore.dto.TransferRequest;
 import com.rachel.ledgercore.dto.TransferResponse;
 import com.rachel.ledgercore.enums.EntryType;
+import com.rachel.ledgercore.enums.NotificationType;
 import com.rachel.ledgercore.enums.Status;
 import com.rachel.ledgercore.exception.AccountNotFoundException;
 import com.rachel.ledgercore.exception.InsufficientBalanceException;
@@ -29,11 +30,19 @@ public class TransferService {
     private final AccountRepository accountRepository;
     private final LedgerEntryRepository ledgerEntryRepository;
     private final TransferRepository transferRepository;
+    private final NotificationService notificationService;
 
     @Transactional
     public TransferResponse transferMoney(TransferRequest transferRequest){
         Transfer existing = transferRepository.findByIdempotencyKey(transferRequest.getIdempotencyKey()).orElse(null);
         if (existing != null) {
+            boolean sameRequest = existing.getFromAccount().getAccountNumber().equals(transferRequest.getFromAccountNumber()) &&
+                    existing.getToAccount().getAccountNumber().equals(transferRequest.getToAccountNumber()) &&
+                    existing.getAmount().compareTo(transferRequest.getAmount()) == 0;
+
+            if(!sameRequest){
+                throw new IllegalArgumentException("Idempotency key already used for different transfer");
+            }
             return TransferResponse.builder()
                     .id(existing.getId())
                     .status(existing.getStatus())
@@ -82,6 +91,8 @@ public class TransferService {
                 .build();
 
         ledgerEntryRepository.saveAll(List.of(debit, credit));
+        notificationService.createNotification(fromAccount,"Money transferred successfully!", NotificationType.TRANSFER_SUCCESS);
+        notificationService.createNotification(toAccount,"Money received successfully!",NotificationType.TRANSFER_SUCCESS);
         return TransferResponse.builder()
                 .id(transfer.getId())
                 .status(transfer.getStatus())

@@ -55,6 +55,10 @@ public class Account {
     @NotBlank
     private String ownerName;
 
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
+
     @Column(nullable = false, precision = 19, scale = 2)
     @NotNull
     @PositiveOrZero

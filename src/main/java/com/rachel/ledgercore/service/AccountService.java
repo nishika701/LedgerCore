@@ -10,6 +10,9 @@ import com.rachel.ledgercore.repository.AccountRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import com.rachel.ledgercore.model.User;
+import com.rachel.ledgercore.repository.UserRepository;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -21,6 +24,7 @@ public class AccountService {
 
     private final AccountRepository accountRepository;
     private final NotificationService notificationService;
+    private final UserRepository userRepository;
 
 //    public AccountService(AccountRepository accountRepository,NotificationService notificationService){
 //        this.accountRepository = accountRepository;
@@ -28,10 +32,17 @@ public class AccountService {
 //    }
 
     public AccountResponse createAccount(CreateAccountRequest createAccountRequest){
+        String username = SecurityContextHolder.getContext()
+                .getAuthentication()
+                .getName();
+
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("Authenticated user not found"));
         if(accountRepository.findByAccountNumber(createAccountRequest.getAccountNumber()).isPresent()){
             throw new AccountAlreadyExistingException("Account number already exists!");
         }
         Account account = Account.builder()
+                .user(user)
                 .currency(createAccountRequest.getCurrency())
                 .accountNumber(createAccountRequest.getAccountNumber())
                 .ownerName(createAccountRequest.getOwnerName())

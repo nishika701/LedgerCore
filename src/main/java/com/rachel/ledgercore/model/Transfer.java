@@ -2,6 +2,8 @@ package com.rachel.ledgercore.model;
 
 import com.rachel.ledgercore.enums.Status;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import lombok.*;
 
@@ -38,6 +40,7 @@ public class Transfer {
     private Account toAccount;
 
     @Column(nullable = false)
+    @NotNull
     @Positive
     private BigDecimal amount;
 
@@ -48,7 +51,8 @@ public class Transfer {
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    @Column(nullable = false, unique = true)
+    @NotBlank
+    @Column(nullable = false, unique = true, updatable = false)
     private String idempotencyKey;
 
     @Version
