@@ -17,6 +17,8 @@ import com.rachel.ledgercore.repository.TransferRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 
 import java.util.ArrayList;
@@ -34,8 +36,31 @@ public class TransferService {
 
     @Transactional
     public TransferResponse transferMoney(TransferRequest transferRequest){
+
+        if (transferRequest.getFromAccountNumber()
+                .equals(transferRequest.getToAccountNumber())) {
+
+            throw new IllegalArgumentException(
+                    "Sender and receiver cannot be the same account"
+            );
+        }
+
+        Account fromAccount = accountRepository.findByAccountNumber(transferRequest.getFromAccountNumber()).orElseThrow(() -> new AccountNotFoundException("From account not found"));
+
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+        if(!fromAccount.getUser().getUsername().equals(username)){
+            throw new AccessDeniedException("You are not authorized to transfer from this account!");
+
+        }
+
         Transfer existing = transferRepository.findByIdempotencyKey(transferRequest.getIdempotencyKey()).orElse(null);
+
         if (existing != null) {
+
+            if(!existing.getFromAccount().getUser().getUsername().equals(username)){
+                throw new AccessDeniedException("Unauthorized access to transfer");
+            }
+
             boolean sameRequest = existing.getFromAccount().getAccountNumber().equals(transferRequest.getFromAccountNumber()) &&
                     existing.getToAccount().getAccountNumber().equals(transferRequest.getToAccountNumber()) &&
                     existing.getAmount().compareTo(transferRequest.getAmount()) == 0;
@@ -50,15 +75,8 @@ public class TransferService {
                     .message("Transfer already processed")
                     .build();
         }
-        if (transferRequest.getFromAccountNumber()
-                .equals(transferRequest.getToAccountNumber())) {
-
-            throw new IllegalArgumentException(
-                    "Sender and receiver cannot be the same account"
-            );
-        }
-        Account fromAccount = accountRepository.findByAccountNumber(transferRequest.getFromAccountNumber()).orElseThrow(() -> new AccountNotFoundException("From account not found"));
         Account toAccount = accountRepository.findByAccountNumber(transferRequest.getToAccountNumber()).orElseThrow(() -> new AccountNotFoundException("To account not found"));
+
         if(fromAccount.getBalance().compareTo(transferRequest.getAmount()) < 0){
             throw new InsufficientBalanceException("Insufficient balance in from account");
         }
@@ -105,6 +123,14 @@ public class TransferService {
 
     public TransferResponse getTransferByTransferId(UUID transferId){
         Transfer transfer = transferRepository.findById(transferId).orElseThrow(() -> new TransferNotFoundException("Transfer not found with id: " + transferId));
+
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+        boolean isSender = transfer.getFromAccount().getUser().getUsername().equals(username);
+        boolean isReceiver = transfer.getToAccount().getUser().getUsername().equals(username);
+        if(!isSender && !isReceiver){
+            throw new AccessDeniedException("You are not authorized to view this transfer!");
+        }
+
         return TransferResponse.builder()
                 .id(transferId)
                 .status(transfer.getStatus())
@@ -116,7 +142,9 @@ public class TransferService {
     }
 
     public List<TransferResponse> getTransfers(){
-        return transferRepository.findAll().stream()
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+
+        return transferRepository.findByFromAccount_User_UsernameOrToAccount_User_Username(username,username).stream()
                 .map(transfer -> TransferResponse.builder()
                         .id(transfer.getId())
                         .status(transfer.getStatus())
@@ -129,7 +157,13 @@ public class TransferService {
     }
 
     public List<TransferResponse> getTransfersByAccountNumber(String accountNumber){
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+
         Account account = accountRepository.findByAccountNumber(accountNumber).orElseThrow(() -> new AccountNotFoundException("Account not found!"));
+        if(!account.getUser().getUsername().equals(username)){
+            throw new AccessDeniedException("You are not authorized to view this account's transfers!");
+        }
+
         List<Transfer> from = transferRepository.findByFromAccountAccountNumber(accountNumber);
         List<Transfer> to = transferRepository.findByToAccountAccountNumber(accountNumber);
         List<Transfer> allTransfers = new ArrayList<>();

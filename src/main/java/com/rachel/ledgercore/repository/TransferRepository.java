@@ -15,4 +15,8 @@ public interface TransferRepository extends JpaRepository<Transfer, UUID> {
     List<Transfer> findByFromAccountAccountNumber(String accountNumber);
     List<Transfer> findByToAccountAccountNumber(String accountNumber);
     Optional<Transfer> findById(UUID id);
+    List<Transfer> findByFromAccount_User_UsernameOrToAccount_User_Username(
+            String senderUsername,
+            String receiverUsername
+    );
 }

@@ -60,7 +60,8 @@ public class AccountService {
     }
 
     public AccountResponse getAccountByAccountNumber(String accountNumber){
-        Account account = accountRepository.findByAccountNumber(accountNumber).orElseThrow(() -> new AccountNotFoundException("Account not found!"));
+        //Account account = accountRepository.findByAccountNumber(accountNumber).orElseThrow(() -> new AccountNotFoundException("Account not found!"));
+        Account account = getOwnedAccount(accountNumber);
         return AccountResponse.builder()
                 .id(account.getId())
                 .createdAt(account.getCreatedAt())
@@ -73,7 +74,8 @@ public class AccountService {
     }
 
     public List<AccountResponse> getAllAccounts(){
-        return accountRepository.findAll().stream()
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+        return accountRepository.findByUser_Username(username).stream()
                 .map(account -> AccountResponse.builder()
                         .id(account.getId())
                         .createdAt(account.getCreatedAt())
@@ -89,7 +91,8 @@ public class AccountService {
 
     @Transactional
     public DepositResponse depositMoney(String accountNumber,DepositRequest depositRequest){
-        Account acc = accountRepository.findByAccountNumber(accountNumber).orElseThrow(() -> new AccountNotFoundException("Account not found!"));
+        //Account acc = accountRepository.findByAccountNumber(accountNumber).orElseThrow(() -> new AccountNotFoundException("Account not found!"));
+        Account acc = getOwnedAccount(accountNumber);
         BigDecimal newBalance =  acc.getBalance().add(depositRequest.getAmount());
         acc.setBalance(newBalance);
         accountRepository.save(acc);
@@ -103,7 +106,8 @@ public class AccountService {
 
     @Transactional
     public WithdrawResponse withdrawMoney(String accountNumber,WithdrawRequest withdrawRequest){
-        Account account = accountRepository.findByAccountNumber(accountNumber).orElseThrow(() -> new AccountNotFoundException("Account not found!"));
+        //Account account = accountRepository.findByAccountNumber(accountNumber).orElseThrow(() -> new AccountNotFoundException("Account not found!"));
+        Account account = getOwnedAccount(accountNumber);
         if (account.getBalance().compareTo(withdrawRequest.getAmount()) < 0) {
             throw new InsufficientBalanceException("Insufficient balance in account!");
         }
@@ -119,13 +123,24 @@ public class AccountService {
     }
 
     public DeleteAccountResponse deleteAccount(String accountNumber){
-        Account account =  accountRepository.findByAccountNumber(accountNumber).orElseThrow(() -> new AccountNotFoundException("Account not found!"));
+        //Account account =  accountRepository.findByAccountNumber(accountNumber).orElseThrow(() -> new AccountNotFoundException("Account not found!"));
+        Account account = getOwnedAccount(accountNumber);
         accountRepository.delete(account);
         return DeleteAccountResponse.builder()
                 .message("Account deleted successfully!")
                 .accountNumber(accountNumber)
                 .deletedOn(LocalDateTime.now())
                 .build();
+    }
+
+
+    private Account getOwnedAccount(String accountNumber){
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+        Account account = accountRepository.findByAccountNumber(accountNumber).orElseThrow(() -> new AccountNotFoundException("Account not found!"));
+        if(!account.getUser().getUsername().equals(username)){
+            throw new org.springframework.security.access.AccessDeniedException("You are not authorized to access this account!");
+        }
+        return account;
     }
 
 }
