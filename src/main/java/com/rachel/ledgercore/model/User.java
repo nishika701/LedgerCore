@@ -1,5 +1,6 @@
 package com.rachel.ledgercore.model;
 
+import com.rachel.ledgercore.enums.Role;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
@@ -28,4 +29,9 @@ public class User {
     @NotBlank
     @Column(nullable = false)
     private String password;
+
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private Role role = Role.USER;
 }
