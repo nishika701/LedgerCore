@@ -331,7 +331,7 @@ public class TransferServiceTest {
                 .build();
 
         TransferResponse response = transferService.transferMoney(request);
-        
+
         assertEquals(0, new BigDecimal("700")
                 .compareTo(fromAccount.getBalance()));
 
