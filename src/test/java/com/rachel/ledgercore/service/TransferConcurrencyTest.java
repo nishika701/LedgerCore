@@ -144,4 +144,177 @@ public class TransferConcurrencyTest {
                 "Receiver balance does not match total successful transfer amounts.");
     }
 
+    @Test
+    void shouldExecuteOnlyOnceWhenIdenticalIdempotencyKeyIsSentConcurrently() throws InterruptedException {
+
+        User user = userRepository.save(User.builder()
+                .username("idemp-user-" + UUID.randomUUID())
+                .password("password")
+                .role(Role.USER)
+                .build());
+
+        Account sender = accountRepository.save(Account.builder()
+                .currency(Currency.INR)
+                .accountNumber("IDEMP-SENDER-" + UUID.randomUUID())
+                .ownerName("Sender")
+                .user(user)
+                .balance(new BigDecimal("1000.00"))
+                .build());
+
+        Account receiver = accountRepository.save(Account.builder()
+                .currency(Currency.INR)
+                .accountNumber("IDEMP-RECEIVER-" + UUID.randomUUID())
+                .ownerName("Receiver")
+                .user(user)
+                .balance(new BigDecimal("0"))
+                .build());
+
+        String sharedIdempotencyKey = "DUPLICATE-KEY-" + UUID.randomUUID();
+        BigDecimal transferAmount = new BigDecimal("100.0");
+
+        int threadCount = 10;
+        ExecutorService executor = Executors.newFixedThreadPool(threadCount);
+        CountDownLatch readyLatch = new CountDownLatch(threadCount);
+        CountDownLatch startLatch = new CountDownLatch(1);
+        CountDownLatch finishLatch = new CountDownLatch(threadCount);
+
+        AtomicInteger executedCount = new AtomicInteger(0);
+
+        for(int i = 0;i < threadCount;i++){
+            executor.submit(() -> {
+               SecurityContextHolder.getContext().setAuthentication(
+                       new UsernamePasswordAuthenticationToken(user.getUsername(),null)
+               );
+
+               readyLatch.countDown();
+               try{
+                   startLatch.await();
+
+                   TransferRequest request = TransferRequest.builder()
+                           .fromAccountNumber(sender.getAccountNumber())
+                           .toAccountNumber(receiver.getAccountNumber())
+                           .amount(transferAmount)
+                           .idempotencyKey(sharedIdempotencyKey)
+                           .build();
+
+                   transferService.transferMoney(request);
+                   executedCount.incrementAndGet();
+               } catch (Exception e) {
+                   //throw new RuntimeException(e);
+               } finally {
+                   SecurityContextHolder.clearContext();
+                   finishLatch.countDown();
+               }
+            });
+        }
+
+        readyLatch.await();
+        startLatch.countDown();
+        finishLatch.await();
+        executor.shutdown();
+
+        Account updatedSender = accountRepository.findByAccountNumber(sender.getAccountNumber()).orElseThrow();
+        Account updatedReceiver = accountRepository.findByAccountNumber(receiver.getAccountNumber()).orElseThrow();
+        System.out.println("====== IDEMPOTENCY STORM RESULTS ======");
+        System.out.println("Sender balance (must be 900.00): " + updatedSender.getBalance());
+        System.out.println("Receiver balance (must be 100.00): " + updatedReceiver.getBalance());
+        System.out.println("=======================================");
+
+        assertEquals(0, new BigDecimal("900.00").compareTo(updatedSender.getBalance()),
+                "Sender was charged more than once!");
+
+        assertEquals(0, new BigDecimal("100.00").compareTo(updatedReceiver.getBalance()),
+                "Receiver was credited more than once!");
+
+        var transfers = transferRepository.findByIdempotencyKey(sharedIdempotencyKey);
+        assertEquals(true, transfers.isPresent(), "Transfer was not saved!");
+
+        var entries = ledgerEntryRepository.findByTransfer(transfers.get());
+        assertEquals(2, entries.size(), "Duplicate ledger entries were created!");
+    }
+
+    @Test
+    void shouldPreventOverdraftUnderConcurrentTransfers() throws InterruptedException {
+
+        User user = userRepository.save(User.builder()
+                .username("overdraft-user-" + UUID.randomUUID())
+                .password("password")
+                .role(Role.USER)
+                .build());
+
+        Account sender = accountRepository.save(Account.builder()
+                .accountNumber("OVERDRAFT-SENDER-" + UUID.randomUUID())
+                .ownerName("Alice")
+                .currency(Currency.INR)
+                .balance(new BigDecimal("100.00")) // Only 100.00!
+                .user(user)
+                .build());
+
+        Account receiver = accountRepository.save(Account.builder()
+                .accountNumber("OVERDRAFT-RECEIVER-" + UUID.randomUUID())
+                .ownerName("Bob")
+                .currency(Currency.INR)
+                .balance(BigDecimal.ZERO)
+                .user(user)
+                .build());
+
+        int threadCount = 5;
+        BigDecimal transferAmount = new BigDecimal("80.00");
+
+        ExecutorService executor = Executors.newFixedThreadPool(threadCount);
+        CountDownLatch readyLatch = new CountDownLatch(threadCount);
+        CountDownLatch startLatch = new CountDownLatch(1);
+        CountDownLatch finishLatch = new CountDownLatch(threadCount);
+
+        AtomicInteger successCount = new AtomicInteger(0);
+        AtomicInteger rejectedCount = new AtomicInteger(0);
+
+        for (int i = 0; i < threadCount; i++) {
+            executor.submit(() -> {
+                SecurityContextHolder.getContext().setAuthentication(
+                        new UsernamePasswordAuthenticationToken(user.getUsername(), null)
+                );
+                readyLatch.countDown();
+                try {
+                    startLatch.await(); // Simultaneous attack
+                    TransferRequest request = TransferRequest.builder()
+                            .fromAccountNumber(sender.getAccountNumber())
+                            .toAccountNumber(receiver.getAccountNumber())
+                            .amount(transferAmount)
+                            .idempotencyKey(UUID.randomUUID().toString())
+                            .build();
+                    transferService.transferMoney(request);
+                    successCount.incrementAndGet();
+                } catch (Exception e) {
+                    rejectedCount.incrementAndGet();
+                } finally {
+                    SecurityContextHolder.clearContext();
+                    finishLatch.countDown();
+                }
+            });
+        }
+        readyLatch.await();
+        startLatch.countDown();
+        finishLatch.await();
+        executor.shutdown();
+
+        Account updatedSender = accountRepository.findByAccountNumber(sender.getAccountNumber()).orElseThrow();
+        Account updatedReceiver = accountRepository.findByAccountNumber(receiver.getAccountNumber()).orElseThrow();
+
+        System.out.println("====== OVERDRAFT TEST RESULTS ======");
+        System.out.println("Successful transfers (must be 1): " + successCount.get());
+        System.out.println("Rejected transfers (must be 4): " + rejectedCount.get());
+        System.out.println("Alice's final balance (must be 20.00): " + updatedSender.getBalance());
+        System.out.println("Bob's final balance (must be 80.00): " + updatedReceiver.getBalance());
+        System.out.println("====================================");
+
+
+        assertEquals(1, successCount.get(), "More than one transfer succeeded, causing overdraft!");
+
+        assertEquals(0, new BigDecimal("20.00").compareTo(updatedSender.getBalance()),
+                "Alice's balance was incorrectly calculated!");
+
+        assertEquals(true, updatedSender.getBalance().compareTo(BigDecimal.ZERO) >= 0,
+                "CRITICAL BUG: Account balance dropped below zero!");
+    }
 }
