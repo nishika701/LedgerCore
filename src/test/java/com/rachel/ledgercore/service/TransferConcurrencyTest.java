@@ -317,4 +317,100 @@ public class TransferConcurrencyTest {
         assertEquals(true, updatedSender.getBalance().compareTo(BigDecimal.ZERO) >= 0,
                 "CRITICAL BUG: Account balance dropped below zero!");
     }
+
+    @Test
+    void shouldPreventDeadlocksWhenTwoAccountsTransferToEachOtherConcurrently() throws InterruptedException {
+
+        User user1 = userRepository.save(User.builder().username("user1-" + UUID.randomUUID())
+                .password("password")
+                .role(Role.USER)
+                .build());
+
+        User user2 = userRepository.save(User.builder().username("user2-" + UUID.randomUUID())
+                .password("password")
+                .role(Role.USER)
+                .build());
+
+        Account user1_account = accountRepository.save(Account.builder()
+                .currency(Currency.INR)
+                .accountNumber("user1" + UUID.randomUUID())
+                .ownerName("user1")
+                .user(user1)
+                .balance(new BigDecimal("1000.00"))
+                .build());
+
+        Account user2_account = accountRepository.save(Account.builder()
+                .currency(Currency.INR)
+                .accountNumber("user2" + UUID.randomUUID())
+                .ownerName("user2")
+                .user(user2)
+                .balance(new BigDecimal("1000.00"))
+                .build());
+
+        int threadCount = 10;
+        BigDecimal transferAmount = new BigDecimal("50.00");
+
+        ExecutorService executor = Executors.newFixedThreadPool(threadCount);
+        CountDownLatch readyLatch = new CountDownLatch(threadCount);
+        CountDownLatch startLatch = new CountDownLatch(1);
+        CountDownLatch finishLatch = new CountDownLatch(threadCount);
+
+        AtomicInteger successCount = new AtomicInteger(0);
+        AtomicInteger failureCount = new AtomicInteger(0);
+
+        for(int i = 0;i < threadCount;i++){
+            final boolean isUser1ToUser2 = (i % 2 == 0);
+
+            executor.submit(() -> {
+                User senderUser = isUser1ToUser2 ? user1 : user2;
+                Account fromAcc = isUser1ToUser2 ? user1_account : user2_account;
+                Account toAcc = isUser1ToUser2 ? user2_account : user1_account;
+
+                SecurityContextHolder.getContext().setAuthentication(
+                        new UsernamePasswordAuthenticationToken(senderUser.getUsername(), null)
+                );
+
+                readyLatch.countDown();
+                try{
+                    startLatch.await();
+
+                    TransferRequest request = TransferRequest.builder()
+                            .fromAccountNumber(fromAcc.getAccountNumber())
+                            .toAccountNumber(toAcc.getAccountNumber())
+                            .amount(transferAmount)
+                            .idempotencyKey(UUID.randomUUID().toString())
+                            .build();
+
+                    transferService.transferMoney(request);
+                    successCount.incrementAndGet();
+                } catch (Exception e){
+                    failureCount.incrementAndGet();
+                } finally {
+                    SecurityContextHolder.clearContext();
+                    finishLatch.countDown();
+                }
+            });
+        }
+
+        readyLatch.await();
+        startLatch.countDown();
+        finishLatch.await();
+        executor.shutdown();
+
+        Account updatedUser1 = accountRepository.findByAccountNumber(user1_account.getAccountNumber()).orElseThrow();
+        Account updatedUser2 = accountRepository.findByAccountNumber(user2_account.getAccountNumber()).orElseThrow();
+
+        BigDecimal totalAfterTransfers = updatedUser1.getBalance().add(updatedUser2.getBalance());
+
+        System.out.println("====== BIDIRECTIONAL TEST RESULTS ======");
+        System.out.println("Successful transfers: " + successCount.get());
+        System.out.println("Failed/Collided transfers: " + failureCount.get());
+        System.out.println("Alice's balance: " + updatedUser1.getBalance());
+        System.out.println("Bob's balance: " + updatedUser2.getBalance());
+        System.out.println("Total money in system: " + totalAfterTransfers);
+        System.out.println("========================================");
+
+        assertEquals(0, new BigDecimal("2000.00").compareTo(totalAfterTransfers),
+                "Conservation of money violated in bidirectional transfers!");
+    }
 }

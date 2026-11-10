@@ -16,6 +16,9 @@ import com.rachel.ledgercore.repository.LedgerEntryRepository;
 import com.rachel.ledgercore.repository.TransferRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
+import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -34,6 +37,11 @@ public class TransferService {
     private final TransferRepository transferRepository;
     private final NotificationService notificationService;
 
+    @Retryable(
+        retryFor = { ObjectOptimisticLockingFailureException.class },
+        maxAttempts = 5,
+        backoff = @Backoff(delay = 50, multiplier = 2)
+    )
     @Transactional
     public TransferResponse transferMoney(TransferRequest transferRequest){
 
