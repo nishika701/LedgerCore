@@ -8,6 +8,8 @@ import com.rachel.ledgercore.enums.Status;
 import com.rachel.ledgercore.exception.AccountNotFoundException;
 import com.rachel.ledgercore.exception.InsufficientBalanceException;
 import com.rachel.ledgercore.exception.TransferNotFoundException;
+import com.rachel.ledgercore.gateway.PaymentGatewayClient;
+import com.rachel.ledgercore.gateway.PaymentGatewayResponse;
 import com.rachel.ledgercore.model.Account;
 import com.rachel.ledgercore.model.LedgerEntry;
 import com.rachel.ledgercore.model.Transfer;
@@ -36,6 +38,7 @@ public class TransferService {
     private final LedgerEntryRepository ledgerEntryRepository;
     private final TransferRepository transferRepository;
     private final NotificationService notificationService;
+    private final PaymentGatewayClient paymentGatewayClient;
 
     @Retryable(
         retryFor = { ObjectOptimisticLockingFailureException.class },
@@ -88,16 +91,43 @@ public class TransferService {
         if(fromAccount.getBalance().compareTo(transferRequest.getAmount()) < 0){
             throw new InsufficientBalanceException("Insufficient balance in from account");
         }
-        fromAccount.setBalance(fromAccount.getBalance().subtract(transferRequest.getAmount()));
-        toAccount.setBalance(toAccount.getBalance().add(transferRequest.getAmount()));
 
         Transfer transfer = Transfer.builder()
                 .fromAccount(fromAccount)
                 .toAccount(toAccount)
                 .amount(transferRequest.getAmount())
-                .status(Status.COMPLETED)
+                .status(Status.PENDING)
                 .idempotencyKey(transferRequest.getIdempotencyKey())
                 .build();
+
+        transfer = transferRepository.save(transfer);
+
+        PaymentGatewayResponse gatewayResponse = paymentGatewayClient.processPayment(transfer.getId(),transferRequest.getAmount());
+
+        if(!gatewayResponse.isSuccessful()) {
+            transfer.setStatus(Status.FAILED);
+            transferRepository.save(transfer);
+
+
+            notificationService.createNotification(fromAccount, "Transfer failed: " + gatewayResponse.getMessage(), NotificationType.TRANSFER_FAILED);
+
+            return TransferResponse.builder()
+                    .id(transfer.getId())
+                    .status(Status.FAILED)
+                    .amount(transfer.getAmount())
+                    .fromAccountNumber(fromAccount.getAccountNumber())
+                    .toAccountNumber(toAccount.getAccountNumber())
+                    .message("Transfer failed: " + gatewayResponse.getMessage())
+                    .build();
+
+        }
+
+        fromAccount.setBalance(fromAccount.getBalance().subtract(transferRequest.getAmount()));
+        toAccount.setBalance(toAccount.getBalance().add(transferRequest.getAmount()));
+
+        accountRepository.saveAll(List.of(fromAccount,toAccount));
+
+        transfer.setStatus(Status.COMPLETED);
         transferRepository.save(transfer);
 
         LedgerEntry debit = LedgerEntry.builder()
