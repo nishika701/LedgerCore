@@ -4,6 +4,7 @@ import com.rachel.ledgercore.dto.TransferRequest;
 import com.rachel.ledgercore.dto.TransferResponse;
 import com.rachel.ledgercore.enums.EntryType;
 import com.rachel.ledgercore.enums.NotificationType;
+import com.rachel.ledgercore.enums.OutboxStatus;
 import com.rachel.ledgercore.enums.Status;
 import com.rachel.ledgercore.exception.AccountNotFoundException;
 import com.rachel.ledgercore.exception.InsufficientBalanceException;
@@ -12,9 +13,11 @@ import com.rachel.ledgercore.gateway.PaymentGatewayClient;
 import com.rachel.ledgercore.gateway.PaymentGatewayResponse;
 import com.rachel.ledgercore.model.Account;
 import com.rachel.ledgercore.model.LedgerEntry;
+import com.rachel.ledgercore.model.OutboxEvent;
 import com.rachel.ledgercore.model.Transfer;
 import com.rachel.ledgercore.repository.AccountRepository;
 import com.rachel.ledgercore.repository.LedgerEntryRepository;
+import com.rachel.ledgercore.repository.OutboxEventRepository;
 import com.rachel.ledgercore.repository.TransferRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -39,6 +42,7 @@ public class TransferService {
     private final TransferRepository transferRepository;
     private final NotificationService notificationService;
     private final PaymentGatewayClient paymentGatewayClient;
+    private final OutboxEventRepository outboxEventRepository;
 
     @Retryable(
         retryFor = { ObjectOptimisticLockingFailureException.class },
@@ -147,8 +151,30 @@ public class TransferService {
                 .build();
 
         ledgerEntryRepository.saveAll(List.of(debit, credit));
+
+
+        String eventPayload = String.format(
+                "{\"transferId\":\"%s\",\"fromAccount\":\"%s\",\"toAccount\":\"%s\",\"amount\":%s,\"status\":\"COMPLETED\"}",
+                transfer.getId(),
+                fromAccount.getAccountNumber(),
+                toAccount.getAccountNumber(),
+                transfer.getAmount()
+        );
+
+        OutboxEvent outboxEvent = OutboxEvent.builder()
+                .aggregateType("TRANSFER")
+                .aggregateId(transfer.getId())
+                .eventType("TRANSFER_COMPLETED")
+                .payload(eventPayload)
+                .status(OutboxStatus.PENDING)
+                .retryCount(0)
+                .build();
+
+        outboxEventRepository.save(outboxEvent);
+
         notificationService.createNotification(fromAccount,"Money transferred successfully!", NotificationType.TRANSFER_SUCCESS);
         notificationService.createNotification(toAccount,"Money received successfully!",NotificationType.TRANSFER_SUCCESS);
+
         return TransferResponse.builder()
                 .id(transfer.getId())
                 .status(transfer.getStatus())
