@@ -28,6 +28,9 @@ public class Account {
         if(id == null){
             id = UUID.randomUUID();
         }
+        if(initialBalance == null || initialBalance.compareTo(BigDecimal.ZERO) == 0){
+            initialBalance = balance != null ? balance : BigDecimal.ZERO;
+        }
         LocalDateTime now = LocalDateTime.now();
         createdAt = now;
         updatedAt = now;
@@ -67,4 +70,9 @@ public class Account {
     @Version
     private Long version;
 
+    @Column(nullable = false, precision = 19, scale = 2)
+    @NotNull
+    @PositiveOrZero
+    @Builder.Default
+    private BigDecimal initialBalance = BigDecimal.ZERO;
 }

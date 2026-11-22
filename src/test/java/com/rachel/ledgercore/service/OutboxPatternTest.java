@@ -170,7 +170,7 @@ public class OutboxPatternTest {
         TransferResponse response = transferService.transferMoney(request);
         assertEquals(Status.FAILED, response.getStatus());
 
-        
+
         List<OutboxEvent> events = outboxEventRepository.findAll();
         assertEquals(0, events.size(), "No outbox events should be created for failed transfers");
     }
