@@ -20,6 +20,6 @@ public interface LedgerEntryRepository extends JpaRepository<LedgerEntry, UUID> 
     @Query("SELECT SUM(e.amount) FROM LedgerEntry e WHERE e.account.id = :accountId AND e.entryType = com.rachel.ledgercore.enums.EntryType.CREDIT")
     BigDecimal sumCreditsByAccountId(@Param("accountId") UUID accountId);
 
-    @Query("SELECT SUM(e.amount) FROM LedgerEntry e WHERE e.account.id = :accountid AND e.entryType = com.rachel.ledgercore.enums.EntryType.DEBIT")
+    @Query("SELECT SUM(e.amount) FROM LedgerEntry e WHERE e.account.id = :accountId AND e.entryType = com.rachel.ledgercore.enums.EntryType.DEBIT")
     BigDecimal sumDebitsByAccountId(@Param("accountId") UUID accountId);
 }
