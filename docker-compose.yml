@@ -1,0 +1,61 @@
+services:
+  # 1. PostgreSQL Database
+  postgres:
+    image: postgres:17-alpine
+    container_name: ledgercore-postgres
+    restart: always
+    environment:
+      POSTGRES_DB: ledgercore
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: rachel
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ledgercore"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # 2. LedgerCore Engine
+  app:
+    build: .
+    container_name: ledgercore-app
+    restart: on-failure
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/ledgercore
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: rachel
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+    ports:
+      - "8080:8080"
+
+  # 3. Prometheus (Metrics Scraper)
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: ledgercore-prometheus
+    restart: always
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+
+  # 4. Grafana (Visual Dashboards)
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: ledgercore-grafana
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    depends_on:
+      - prometheus
+
+volumes:
+  postgres_data:
