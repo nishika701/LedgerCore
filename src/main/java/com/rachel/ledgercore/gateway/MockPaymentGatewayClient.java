@@ -56,4 +56,12 @@ public class MockPaymentGatewayClient implements PaymentGatewayClient {
                 .build();
 
     }
+
+    public boolean isSimulateFailure() {
+        return simulateFailure;
+    }
+
+    public boolean isSimulateTimeout() {
+        return simulateTimeout;
+    }
 }
